@@ -21,28 +21,14 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+use core::result::Result::Ok;
+use std::fs;
+// use anyhow::Ok;
+use rand::Rng;
+use winit::window::Window;
 use std::time::{ Duration, Instant, };
 
-use image;
+use ::image;
 use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::{
     event::{Event, ElementState, KeyboardInput, VirtualKeyCode, WindowEvent, MouseScrollDelta, MouseButton},
@@ -52,8 +38,6 @@ use winit::{
 
 use wgpu::util::DeviceExt;
 // use wgpu_glyph::{ab_glyph, GlyphBrushBuilder, Section, Text, Layout};
-
-
 
 
 
@@ -142,7 +126,7 @@ struct PanState {
 
 
 const ZOOM_SPEED: f32 = 0.1;
-const PAN_SCALAR: f32 = 200.0;
+// const PAN_SCALAR: f32 = 10000.0;
 
 fn update_vertex_data(zoom_level: &f32, pan_offset: &[f32; 2], window_aspect_ratio: f32, image_aspect_ratio: f32) -> Vec<Vertex> {
     let mut scale_x = *zoom_level;
@@ -182,42 +166,120 @@ fn handle_zoom(delta: &MouseScrollDelta, zoom_level: &mut f32, pan_offset: &[f32
     update_vertex_data(zoom_level, pan_offset, window_aspect_ratio, image_aspect_ratio)
 }
 
+
+
 fn handle_pan(
     curr_mouse_pos: &PhysicalPosition<f64>,
-    prev_mouse_pos: &PhysicalPosition<f64>,
+    prev_mouse_pos: &mut PhysicalPosition<f64>,
     zoom_level: &f32,
     pan_offset: &mut [f32; 2],
-    window_aspect_ratio: f32,
-    image_aspect_ratio: f32,
-) -> Vec<Vertex> {
-    let delta_x = (curr_mouse_pos.x - prev_mouse_pos.x) as f32 / (*zoom_level * PAN_SCALAR);
-    let delta_y = -((curr_mouse_pos.y - prev_mouse_pos.y) as f32 / (*zoom_level * PAN_SCALAR));
+) {
+    let panning_speed_factor = 0.005 / *zoom_level;
 
-    pan_offset[0] += delta_x;
-    pan_offset[1] += delta_y;
+    let delta_x = (curr_mouse_pos.x - prev_mouse_pos.x) as f32;
+    let delta_y = (curr_mouse_pos.y - prev_mouse_pos.y) as f32;
 
-    update_vertex_data(zoom_level, pan_offset, window_aspect_ratio, image_aspect_ratio)
+    pan_offset[0] += delta_x * panning_speed_factor;
+    pan_offset[1] += -delta_y * panning_speed_factor;
+
+    *prev_mouse_pos = *curr_mouse_pos;
+}
+
+
+fn generate_random_palette(num_colors: usize) -> Vec<[f32; 3]> {
+    let mut rng = rand::thread_rng();
+    let mut palette = Vec::with_capacity(num_colors);
+
+    for _ in 0..num_colors {
+        let r = rng.gen_range(0.0..1.0);
+        let g = rng.gen_range(0.0..1.0);
+        let b = rng.gen_range(0.0..1.0);
+        palette.push([r, g, b]);
+    }
+
+    palette
 }
 
 
 
 
+use eframe::egui;
 
+struct Renderer {
+    imagename: String,
+    selected_shader_index: usize,
+}
 
+impl Default for Renderer {
+    fn default() -> Self {
+        Self {
+            imagename: "cat.png".to_owned(),
+            selected_shader_index: 0,
+        }
+    }
+}
+
+impl eframe::App for Renderer {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("pick an image and shader");
+            ui.add_space(15.0);
+
+            ui.horizontal(|ui| {
+                let name_label = ui.label("select an image: ");
+
+                if ui.button("choose File").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        self.imagename = path.display().to_string();
+                    }
+                }
+
+                ui.label(&self.imagename).labelled_by(name_label.id);
+            });
+            ui.add_space(15.0);
+
+            let shader_options = vec!["invert", "sobel edge detection", "quantization"];
+            ui.horizontal(|ui| {
+                ui.label("select a shader: ");
+                egui::ComboBox::from_label("")
+                .selected_text(shader_options[self.selected_shader_index])
+                .show_ui(ui, |ui| {
+                    
+                    ui.selectable_value(&mut self.selected_shader_index, 0, "invert");
+                    ui.selectable_value(&mut self.selected_shader_index, 1, "sobel edge detection");
+                    ui.selectable_value(&mut self.selected_shader_index, 2, "quantization");
+                });
+            });
+
+            ui.add_space(15.0);
+
+            if ui.button("render").clicked() {
+                // Run the code using the selected image and shader
+                let shader_options = vec!["invert", "sobel edge detection", "quantization"];
+                // pollster::block_on(self.process_image(self.imagename.replace('\\', "/").clone(), shader_options[self.selected_shader_index]));
+                // self.process_image(self.imagename.replace('\\', "/").clone(), shader_options[self.selected_shader_index]);
+            }
+
+            ui.label(format!("image: [{}], shader: [{}]", self.imagename, shader_options[self.selected_shader_index]));
+
+        });
+    }
+}
 
 
 
 async fn run() {
+    let shader_options = vec!["invert", "sobel edge detection", "quantization"];
 
-
-   
-
-
+    println!("RUNNING RENDERER");
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    
+
+    // let mut imagename = "cat.png";
+    // let mut shader = "../shaders/invert/";
+    // let mut should_render = false;
 
     
 
@@ -248,9 +310,26 @@ async fn run() {
     .await
     .unwrap();
 
+    // println!("{}", imagename.replace('\\', "/"));
+    
+    let img = image::load_from_memory(include_bytes!("../images/cat.png")).unwrap();
+    // let img = image::open(&Path::new("C:/Users/austin/rust/image-filters/image-filters/src/fish.png")).unwrap();
+    // let img = image::open(&Path::new(&imagename)).unwrap();
 
+    // let img = match fs::read(&imagename) {
+    //     Ok(bytes) => match image::load_from_memory(&bytes) {
+    //         Ok(img) => img,
+    //         Err(e) => {
+    //             eprintln!("Failed to load image: {}", e);
+    //             return;
+    //         }
+    //     },
+    //     Err(e) => {
+    //         eprintln!("Failed to read image file: {}", e);
+    //         return;
+    //     }
+    // };
 
-    let img = image::load_from_memory(include_bytes!("../images/caT.png")).unwrap();
     let img_ = img.to_rgba8();
     let (mut width, mut height) = img_.dimensions();
 
@@ -382,7 +461,6 @@ async fn run() {
                 resource: wgpu::BindingResource::Sampler(&device.create_sampler(&wgpu::SamplerDescriptor {
                     address_mode_u: wgpu::AddressMode::ClampToEdge,
                     address_mode_v: wgpu::AddressMode::ClampToEdge,
-                    address_mode_w: wgpu::AddressMode::ClampToEdge,
                     mag_filter: wgpu::FilterMode::Linear,
                     min_filter: wgpu::FilterMode::Nearest,
                     mipmap_filter: wgpu::FilterMode::Nearest,
@@ -394,25 +472,94 @@ async fn run() {
 
 
 
-    // Load the shader modules
+
+
+    // use bytemuck::{Pod, Zeroable};
+
+    // #[repr(C)]
+    // #[derive(Copy, Clone, Zeroable)]
+    // struct Palette {
+    //     colors: [wgpu::Color; 8],
+    // }
+    
+    // unsafe impl Pod for Palette {}
+    
+    // let palette_size = 8;
+    // let mut random_palette = Palette {
+    //     colors: [wgpu::Color::BLACK; 8],
+    // };
+    
+    // let mut rng = rand::thread_rng();
+    // for i in 0..palette_size {
+    //     random_palette.colors[i] = wgpu::Color {
+    //         r: rng.gen_range(0.0..1.0),
+    //         g: rng.gen_range(0.0..1.0),
+    //         b: rng.gen_range(0.0..1.0),
+    //         a: 1.0,
+    //     };
+    // }
+    
+    // let palette_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    //     label: Some("Palette Buffer"),
+    //     contents: bytemuck::bytes_of(&random_palette),
+    //     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    // });
+    
+    // // ... (palette_bind_group_layout and palette_bind_group creation remain the same)
+
+    // let palette_bind_group_layout =
+    // device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+    //     entries: &[wgpu::BindGroupLayoutEntry {
+    //         binding: 0,
+    //         visibility: wgpu::ShaderStages::FRAGMENT,
+    //         ty: wgpu::BindingType::Buffer {
+    //             ty: wgpu::BufferBindingType::Uniform,
+    //             has_dynamic_offset: false,
+    //             min_binding_size: None,
+    //         },
+    //         count: None,
+    //     }],
+    //     label: Some("palette_bind_group_layout"),
+    // });
+
+    // let palette_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+    //     layout: &palette_bind_group_layout,
+    //     entries: &[wgpu::BindGroupEntry {
+    //         binding: 0,
+    //         resource: palette_buffer.as_entire_binding(),
+    //     }],
+    //     label: Some("palette_bind_group"),
+    // });
+
+
+
+
+
+
+
+
+
+
+
     let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("V-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/sobel-edge-detection/vertex.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/quantization/vertex.wgsl"))),
     });
 
     let frag_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("F-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/sobel-edge-detection/fragment.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/quantization/fragment.wgsl"))),
     });
 
-    // Create the render pipeline layout
+
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
+        // bind_group_layouts: &[&texture_bind_group_layout, &palette_bind_group_layout],
         bind_group_layouts: &[&texture_bind_group_layout],
         push_constant_ranges: &[],
     });
 
-    // Create the render pipeline
+
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&pipeline_layout),
@@ -478,6 +625,7 @@ async fn run() {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
     
+        // println!("START OF EVENT LOOP");
 
         let fps = stats.fps();
         // let render_time = stats.render_time() * 1000.0; // Convert to milliseconds
@@ -504,13 +652,7 @@ async fn run() {
                 let window_aspect_ratio = window_size.width as f32 / window_size.height as f32;
                 let image_aspect_ratio = width as f32 / height as f32;
             
-                let new_vertex_data = handle_zoom(&delta, &mut zoom_level, &pan_offset, window_aspect_ratio, image_aspect_ratio);
-                queue.write_buffer(&vertex_buffer, 0, unsafe {
-                    std::slice::from_raw_parts(
-                        new_vertex_data.as_ptr() as *const u8,
-                        vertex_data.len() * std::mem::size_of::<Vertex>(),
-                    )
-                });
+                handle_zoom(&delta, &mut zoom_level, &pan_offset, window_aspect_ratio, image_aspect_ratio);
             }
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { state, button, .. },
@@ -519,7 +661,7 @@ async fn run() {
                 match (state, button) {
                     (ElementState::Pressed, MouseButton::Left) => {
                         pan_state.is_panning = true;
-                        pan_state.prev_mouse_pos = current_mouse_position; // Initialize prev_mouse_pos with the current position
+                        pan_state.prev_mouse_pos = current_mouse_position; // Reset the previous mouse position
                     }
                     (ElementState::Released, MouseButton::Left) => {
                         pan_state.is_panning = false;
@@ -534,18 +676,13 @@ async fn run() {
                 current_mouse_position = position;
             
                 if pan_state.is_panning {
-                    let window_size = window.inner_size();
-                    let window_aspect_ratio = window_size.width as f32 / window_size.height as f32;
-                    let image_aspect_ratio = width as f32 / height as f32;
+                    // let window_size = window.inner_size();
+                    // let window_aspect_ratio = window_size.width as f32 / window_size.height as f32;
+                    // let image_aspect_ratio = width as f32 / height as f32;
             
-                    let new_vertex_data = handle_pan(&position, &mut pan_state.prev_mouse_pos, &mut zoom_level, &mut pan_offset, window_aspect_ratio, image_aspect_ratio);
-                    pan_state.prev_mouse_pos = position;
-                    queue.write_buffer(&vertex_buffer, 0, unsafe {
-                        std::slice::from_raw_parts(
-                            new_vertex_data.as_ptr() as *const u8,
-                            vertex_data.len() * std::mem::size_of::<Vertex>(),
-                        )
-                    });
+                    handle_pan(&position, &mut pan_state.prev_mouse_pos, &mut zoom_level, &mut pan_offset);
+
+                    window.request_redraw();
                 }
             }
             Event::WindowEvent {
@@ -618,11 +755,24 @@ async fn run() {
                 match surface.get_current_texture() {
                     Ok(frame) => {
                         let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-    
+            
                         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                             label: Some("Render Encoder"),
                         });
-    
+            
+                        let window_size = window.inner_size();
+                        let window_aspect_ratio = window_size.width as f32 / window_size.height as f32;
+                        let image_aspect_ratio = width as f32 / height as f32;
+            
+                        let vertex_data = update_vertex_data(&zoom_level, &pan_offset, window_aspect_ratio, image_aspect_ratio);
+            
+                        queue.write_buffer(&vertex_buffer, 0, unsafe {
+                            std::slice::from_raw_parts(
+                                vertex_data.as_ptr() as *const u8,
+                                vertex_data.len() * std::mem::size_of::<Vertex>(),
+                            )
+                        });
+            
                         {
                             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                                 label: Some("Render Pass"),
@@ -631,9 +781,9 @@ async fn run() {
                                     resolve_target: None,
                                     ops: wgpu::Operations {
                                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                                            r: 0.0,
-                                            g: 0.0,
-                                            b: 0.0,
+                                            r: 1.0,
+                                            g: 1.0,
+                                            b: 1.0,
                                             a: 1.0,
                                         }),
                                         store: true,
@@ -641,31 +791,14 @@ async fn run() {
                                 })],
                                 depth_stencil_attachment: None,
                             });
-    
-
-                            let window_size = window.inner_size();
-                            let window_aspect_ratio = window_size.width as f32 / window_size.height as f32;
-                            let image_aspect_ratio = width as f32 / height as f32;
             
-                            let vertex_data = update_vertex_data(&zoom_level, &pan_offset, window_aspect_ratio, image_aspect_ratio);
-    
-                            queue.write_buffer(&vertex_buffer, 0, unsafe {
-                                std::slice::from_raw_parts(
-                                    vertex_data.as_ptr() as *const u8,
-                                    vertex_data.len() * std::mem::size_of::<Vertex>(),
-                                )
-                            });
-    
                             render_pass.set_pipeline(&render_pipeline);
                             render_pass.set_bind_group(0, &texture_bind_group, &[]);
+                            // render_pass.set_bind_group(1, &palette_bind_group, &[]);
                             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                             render_pass.draw(0..6, 0..1);
-
-
-
-
                         }
-    
+            
                         queue.submit(std::iter::once(encoder.finish()));
                         frame.present();
                     }
@@ -675,18 +808,82 @@ async fn run() {
                         // You can choose to return early or take appropriate action
                     }
                 };
+                window.request_redraw();
             }
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
             _ => {}
         }
-    })
+    });
+    // run().await;
+    
+}
+
+
+
+// fn swap_backslashes(s: String) -> String {
+//     s.replace('\\', "/")
+// }
+
+
+
+
+
+
+
+//imagename: &String, shader: &str
+// async fn run() {
+// async fn run() {
+
+
 
     
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+fn show_window() {
+    env_logger::init();
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "renderer",
+        options,
+        Box::new(|cc| {
+            Box::<Renderer>::default()
+        }),
+    ).unwrap();
 }
+
+
+
+
 
 fn main() {
     pollster::block_on(run());
+    // show_window()
 }
