@@ -37,10 +37,10 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
     blurredImage2 /= sum2;
 
     // ----- Difference of Gaussians -----
-    var difference = blurredImage2 - blurredImage1; 
+    var difference = blurredImage1 - blurredImage2; 
 
     // ----- Thresholding (optional) -----
-    var threshold = 0.1; 
+    var threshold = 0.015; 
     return vec4<f32>(step(threshold, abs(difference.r)), // Black for edges in red channel
                        step(threshold, abs(difference.r)), // Black for edges in red channel (repeat for consistency)
                        step(threshold, abs(difference.r)), // Black for edges in red channel (repeat for consistency)

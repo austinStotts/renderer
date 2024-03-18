@@ -328,7 +328,7 @@ async fn run() {
 
     // println!("{}", imagename.replace('\\', "/"));
     
-    let img = image::load_from_memory(include_bytes!("../images/cat.png")).unwrap();
+    let img = image::load_from_memory(include_bytes!("../images/castle.png")).unwrap();
     // let img = image::open(&Path::new("C:/Users/austin/rust/image-filters/image-filters/src/fish.png")).unwrap();
     // let img = image::open(&Path::new(&imagename)).unwrap();
 
