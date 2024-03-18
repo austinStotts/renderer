@@ -1,31 +1,8 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use core::result::Result::Ok;
 use std::fs;
-// use anyhow::Ok;
 use rand::Rng;
-use winit::window::Window;
+use winit::event_loop;
+use winit::window::{self, Window};
 use std::time::{ Duration, Instant, };
 
 use ::image;
@@ -37,17 +14,18 @@ use winit::{
 };
 
 use wgpu::util::DeviceExt;
-// use wgpu_glyph::{ab_glyph, GlyphBrushBuilder, Section, Text, Layout};
+
+use eframe::egui::{self};
+
+use std::sync::mpsc::{channel, Sender, Receiver};
+use std::thread;
+use std::sync::Arc;
+
+use tokio;
+// use winit::platform::windows::EventLoopBuilderExtWindows;
 
 
-
-
-
-
-
-
-
-
+// ... (Stats, Vertex, PanState, and other structs remain the same)
 
 struct Stats {
     frame_count: u32,
@@ -89,24 +67,6 @@ impl Stats {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct Vertex {
@@ -119,10 +79,6 @@ struct PanState {
     is_panning: bool,
     prev_mouse_pos: PhysicalPosition<f64>,
 }
-
-
-
-
 
 
 const ZOOM_SPEED: f32 = 0.1;
@@ -167,7 +123,6 @@ fn handle_zoom(delta: &MouseScrollDelta, zoom_level: &mut f32, pan_offset: &[f32
 }
 
 
-
 fn handle_pan(
     curr_mouse_pos: &PhysicalPosition<f64>,
     prev_mouse_pos: &mut PhysicalPosition<f64>,
@@ -199,25 +154,34 @@ fn generate_random_palette(num_colors: usize) -> Vec<[f32; 3]> {
 
     palette
 }
+// _______________________________
+// util function above
 
 
 
-
-use eframe::egui;
-
+// #[derive(Default)]
 struct Renderer {
     imagename: String,
     selected_shader_index: usize,
+    // Add other necessary fields for rendering
+    window: Window,
+    event_loop: EventLoop<()>,
+    render_tx: Option<Sender<()>>,
+    render_rx: Option<Receiver<()>>,
 }
 
-impl Default for Renderer {
-    fn default() -> Self {
-        Self {
-            imagename: "cat.png".to_owned(),
-            selected_shader_index: 0,
-        }
-    }
-}
+// impl Default for Renderer {
+//     fn default() -> Self {
+//         Self {
+//             imagename: "cat.png".to_owned(),
+//             selected_shader_index: 0,
+//             device: wgpu::Device::default(),
+//             queue: wgpu::Queue::default(),
+//             render_tx: None,
+//             render_rx: None,
+//         }
+//     }
+// }
 
 impl eframe::App for Renderer {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -253,28 +217,76 @@ impl eframe::App for Renderer {
 
             ui.add_space(15.0);
 
-            if ui.button("render").clicked() {
-                // Run the code using the selected image and shader
-                let shader_options = vec!["invert", "sobel edge detection", "quantization"];
-                // pollster::block_on(self.process_image(self.imagename.replace('\\', "/").clone(), shader_options[self.selected_shader_index]));
-                // self.process_image(self.imagename.replace('\\', "/").clone(), shader_options[self.selected_shader_index]);
-            }
-
             ui.label(format!("image: [{}], shader: [{}]", self.imagename, shader_options[self.selected_shader_index]));
 
+            if ui.button("render").clicked() {
+                let shader_options = vec!["invert", "sobel edge detection", "quantization"];
+                self.process_image(self.imagename.replace('\\', "/").clone(), shader_options[self.selected_shader_index].to_string());
+            }
+
+            // ...
         });
+
+        if let Some(render_rx) = &self.render_rx {
+            if let Ok(()) = render_rx.try_recv() {
+                // Rendering finished, update the UI or perform any necessary actions
+            }
+        }
     }
+}
+
+impl Renderer {
+    async fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let event_loop = EventLoop::new();
+        let window = WindowBuilder::new().build(&event_loop).unwrap();
+
+        let (render_tx, render_rx) = channel();
+
+        Self {
+            imagename: "cat.png".to_owned(),
+            selected_shader_index: 0,
+            event_loop,
+            window,
+            // Initialize other fields
+            render_tx: Some(render_tx),
+            render_rx: Some(render_rx),
+        }
+    }
+
+    fn process_image(&mut self, imagename: String, shader: String) {
+        let render_tx = self.render_tx.take().unwrap();
+        let render_rx = self.render_rx.take().unwrap();
+
+        let event_loop = self.event_loop.clone();
+        let window = self.window.clone();
+
+        thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(render_loop(imagename, shader, render_tx, event_loop, window));
+        });
+
+        self.render_rx = Some(render_rx);
+    }
+
 }
 
 
 
-async fn run() {
+
+
+async fn render_loop(
+    imagename: String,
+    shader: String,
+    render_tx: Sender<()>,
+    event_loop: EventLoop<()>,
+    window: Window,
+) {
     let shader_options = vec!["invert", "sobel edge detection", "quantization"];
 
     println!("RUNNING RENDERER");
 
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    // let event_loop = EventLoop::new_any_thread();
+    // let window = WindowBuilder::new().build(&event_loop).unwrap();
 
 
     // let mut imagename = "cat.png";
@@ -309,26 +321,7 @@ async fn run() {
     )
     .await
     .unwrap();
-
-    // println!("{}", imagename.replace('\\', "/"));
-    
-    let img = image::load_from_memory(include_bytes!("../images/castle.png")).unwrap();
-    // let img = image::open(&Path::new("C:/Users/austin/rust/image-filters/image-filters/src/fish.png")).unwrap();
-    // let img = image::open(&Path::new(&imagename)).unwrap();
-
-    // let img = match fs::read(&imagename) {
-    //     Ok(bytes) => match image::load_from_memory(&bytes) {
-    //         Ok(img) => img,
-    //         Err(e) => {
-    //             eprintln!("Failed to load image: {}", e);
-    //             return;
-    //         }
-    //     },
-    //     Err(e) => {
-    //         eprintln!("Failed to read image file: {}", e);
-    //         return;
-    //     }
-    // };
+    let img = image::load_from_memory(include_bytes!("../images/cat.png")).unwrap();
 
     let img_ = img.to_rgba8();
     let (mut width, mut height) = img_.dimensions();
@@ -470,77 +463,6 @@ async fn run() {
         ],
     });
 
-
-
-
-
-    // use bytemuck::{Pod, Zeroable};
-
-    // #[repr(C)]
-    // #[derive(Copy, Clone, Zeroable)]
-    // struct Palette {
-    //     colors: [wgpu::Color; 8],
-    // }
-    
-    // unsafe impl Pod for Palette {}
-    
-    // let palette_size = 8;
-    // let mut random_palette = Palette {
-    //     colors: [wgpu::Color::BLACK; 8],
-    // };
-    
-    // let mut rng = rand::thread_rng();
-    // for i in 0..palette_size {
-    //     random_palette.colors[i] = wgpu::Color {
-    //         r: rng.gen_range(0.0..1.0),
-    //         g: rng.gen_range(0.0..1.0),
-    //         b: rng.gen_range(0.0..1.0),
-    //         a: 1.0,
-    //     };
-    // }
-    
-    // let palette_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-    //     label: Some("Palette Buffer"),
-    //     contents: bytemuck::bytes_of(&random_palette),
-    //     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    // });
-    
-    // // ... (palette_bind_group_layout and palette_bind_group creation remain the same)
-
-    // let palette_bind_group_layout =
-    // device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-    //     entries: &[wgpu::BindGroupLayoutEntry {
-    //         binding: 0,
-    //         visibility: wgpu::ShaderStages::FRAGMENT,
-    //         ty: wgpu::BindingType::Buffer {
-    //             ty: wgpu::BufferBindingType::Uniform,
-    //             has_dynamic_offset: false,
-    //             min_binding_size: None,
-    //         },
-    //         count: None,
-    //     }],
-    //     label: Some("palette_bind_group_layout"),
-    // });
-
-    // let palette_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-    //     layout: &palette_bind_group_layout,
-    //     entries: &[wgpu::BindGroupEntry {
-    //         binding: 0,
-    //         resource: palette_buffer.as_entire_binding(),
-    //     }],
-    //     label: Some("palette_bind_group"),
-    // });
-
-
-
-
-
-
-
-
-
-
-
     let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("V-Shader"),
         source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/quantization/vertex.wgsl"))),
@@ -620,11 +542,10 @@ async fn run() {
 
     let mut current_mouse_position = PhysicalPosition::new(0.0, 0.0);
 
-
-
     event_loop.run(move |event, _, control_flow| {
+        // ... (Event handling code remains the same)
         *control_flow = ControlFlow::Wait;
-    
+
         // println!("START OF EVENT LOOP");
 
         let fps = stats.fps();
@@ -816,28 +737,11 @@ async fn run() {
             _ => {}
         }
     });
-    // run().await;
-    
+
+    render_tx.send(()).unwrap();
 }
 
-
-
-// fn swap_backslashes(s: String) -> String {
-//     s.replace('\\', "/")
-// }
-
-
-
-
-
-
-
-//imagename: &String, shader: &str
-// async fn run() {
-// async fn run() {
-
-
-
+        
     
 
 
@@ -854,17 +758,11 @@ async fn run() {
 
 
 
-
-
-
-
-
-
-
-
+// ... (show_window and main functions remain the same)
 
 
 fn show_window() {
+    
     env_logger::init();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
@@ -874,7 +772,8 @@ fn show_window() {
         "renderer",
         options,
         Box::new(|cc| {
-            Box::<Renderer>::default()
+            let renderer = pollster::block_on(Renderer::new(cc));
+            Box::new(renderer)
         }),
     ).unwrap();
 }
@@ -884,6 +783,6 @@ fn show_window() {
 
 
 fn main() {
-    pollster::block_on(run());
+    // pollster::block_on(run());
     // show_window()
 }
