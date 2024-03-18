@@ -3,7 +3,7 @@
 
 @fragment
 fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
-    var radius1: f32 = 2.0;  // Radius for the first Gaussian
+    var radius1: f32 = 4.0;  // Radius for the first Gaussian
     var sigma1: f32 = radius1 / 3.0;
     var radius2: f32 = 5.0;  // Radius for the second Gaussian
     var sigma2: f32 = radius2 / 3.0;
@@ -41,10 +41,11 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
 
     // ----- Thresholding (optional) -----
     var threshold = 0.015; 
-    return vec4<f32>(step(threshold, abs(difference.r)), // Black for edges in red channel
-                       step(threshold, abs(difference.r)), // Black for edges in red channel (repeat for consistency)
-                       step(threshold, abs(difference.r)), // Black for edges in red channel (repeat for consistency)
-                       1.0);  // Alpha remains 1.0
+    return vec4<f32>(
+        step(threshold, abs(difference.r)),
+        step(threshold, abs(difference.r)),
+        step(threshold, abs(difference.r)),
+        1.0);  // Alpha remains 1.0
 }
 
 
