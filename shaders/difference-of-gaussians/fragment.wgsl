@@ -3,8 +3,8 @@
 
 @fragment
 fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
-    let textureSize : vec2<f32> = vec2<f32>(textureDimensions(texture));
-    let radius : f32 = 5.0; // Adjust for desired blur radius
+    let textureSize : vec2<i32> = textureDimensions(texture);
+    let radius : f32 = 1.0; // Adjust for desired blur radius
     let sigma : f32 = radius / 3.0; // Standard deviation for Gaussian
 
     let kernelSize : i32 = i32(ceil(radius) * 2.0 + 1.0); // Odd kernel size
@@ -13,7 +13,7 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
     var sum : f32 = 0.0;
 
     for (var offsetX : i32 = -kernelSize / 2; offsetX <= kernelSize / 2; offsetX++) {
-        let samplePos : vec2<f32> = texcoord.xy / textureSize + vec2<f32>(f32(offsetX), 0.0) / textureSize;  // Horizontal pass
+        let samplePos : vec2<f32> = texcoord.xy / vec2<f32>(textureSize) + vec2<f32>(f32(offsetX), 0.0) / vec2<f32>(textureSize);  // Horizontal pass
 
         let weight : f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma * sigma)) / (sqrt(2.0 * 3.14159) * sigma);
         result += textureSample(texture, sample, samplePos) * weight;
@@ -22,16 +22,16 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
 
     result /= sum; 
 
-    sum = 0.0;
-    for (var offsetY : i32 = -kernelSize / 2; offsetY <= kernelSize / 2; offsetY++) {
-        let samplePos : vec2<f32> = texcoord.xy / textureSize + vec2<f32>(f32(offsetY), 0.0) / textureSize;  // Horizontal pass
+    // sum = 0.0;
+    // for (var offsetY : i32 = -kernelSize / 2; offsetY <= kernelSize / 2; offsetY++) {
+    //     let samplePos : vec2<f32> = texcoord.xy / textureSize + vec2<f32>(0.0, f32(offsetY)) / textureSize;  // Vertical pass
 
-        let weight : f32 = exp(-(f32(offsetY) * f32(offsetY)) / (2.0 * sigma * sigma)) / (sqrt(2.0 * 3.14159) * sigma);
-        result += textureSample(texture, sample, samplePos) * weight;
-        sum += weight;
-    }
+    //     let weight : f32 = exp(-(f32(offsetY) * f32(offsetY)) / (2.0 * sigma * sigma)) / (sqrt(2.0 * 3.14159) * sigma);
+    //     result += textureSample(texture, sample, samplePos) * weight;
+    //     sum += weight;
+    // }
 
-    result /= sum; 
+    // result /= sum; 
 
     // Vertical pass (same implementation, swap offsetX and offsetY in the loop)
 
