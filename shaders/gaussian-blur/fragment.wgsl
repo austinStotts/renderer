@@ -1,3 +1,11 @@
+
+struct Parameters {
+    radius: f32,
+    sigma: f32,
+}
+
+
+
 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
 @group(0) @binding(1) var sampler0: sampler;
 
