@@ -3,21 +3,21 @@
 
 @fragment
 fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
-    const radius1: f32 = 2.0;  // Radius for the first Gaussian
-    const sigma1: f32 = radius1 / 3.0;
-    const radius2: f32 = 5.0;  // Radius for the second Gaussian
-    const sigma2: f32 = radius2 / 3.0;
+    var radius1: f32 = 2.0;  // Radius for the first Gaussian
+    var sigma1: f32 = radius1 / 3.0;
+    var radius2: f32 = 5.0;  // Radius for the second Gaussian
+    var sigma2: f32 = radius2 / 3.0;
 
-    let textureSize: vec2<f32> = vec2<f32>(textureDimensions(inputTexture));
+    var textureSize: vec2<f32> = vec2<f32>(textureDimensions(inputTexture));
 
     // ----- Gaussian Blur 1 -----
     var blurredImage1: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0); 
     var sum1: f32 = 0.0;
 
-    let kernelSize1: i32 = i32(ceil(radius1) * 2.0 + 1.0); 
+    var kernelSize1: i32 = i32(ceil(radius1) * 2.0 + 1.0); 
     for (var offsetX : i32 = -kernelSize1 / 2; offsetX <= kernelSize1 / 2; offsetX++) {
-        let samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / textureSize.x, 0.0);
-        let weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma1 * sigma1)) / (sqrt(2.0 * 3.14159) * sigma1);
+        var samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / textureSize.x, 0.0);
+        var weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma1 * sigma1)) / (sqrt(2.0 * 3.14159) * sigma1);
         blurredImage1 += textureSample(inputTexture, sampler0, samplePos) * weight;
         sum1 += weight;
     }
@@ -27,28 +27,40 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
     var blurredImage2: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0); 
     var sum2: f32 = 0.0;
 
-    let kernelSize2: i32 = i32(ceil(radius2) * 2.0 + 1.0); 
+    var kernelSize2: i32 = i32(ceil(radius2) * 2.0 + 1.0); 
     for (var offsetX : i32 = -kernelSize2 / 2; offsetX <= kernelSize2 / 2; offsetX++) {
-        let samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / textureSize.x, 0.0);
-        let weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma2 * sigma2)) / (sqrt(2.0 * 3.14159) * sigma2);
+        var samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / textureSize.x, 0.0);
+        var weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma2 * sigma2)) / (sqrt(2.0 * 3.14159) * sigma2);
         blurredImage2 += textureSample(inputTexture, sampler0, samplePos) * weight;
         sum2 += weight;
     }
     blurredImage2 /= sum2;
 
     // ----- Difference of Gaussians -----
-    let difference = blurredImage1 - blurredImage2; 
+    var difference = blurredImage2 - blurredImage1; 
 
     // ----- Thresholding (optional) -----
-    const threshold = 0.05; 
+    var threshold = 0.1; 
     return vec4<f32>(step(threshold, abs(difference.r)), step(threshold, abs(difference.g)), step(threshold, abs(difference.b)), 1.0);
 }
 
 
+    // DEFAULT:
+    // var radius1: f32 = 2.0;
+    // var sigma1: f32 = radius1 / 3.0;
+    // var radius2: f32 = 5.0;
+    // var sigma2: f32 = radius2 / 3.0;
+    // var blurredImage1: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0); 
+    // var blurredImage2: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0); 
 
 
-
-
+    // this looked cool:
+    // var radius1: f32 = 1.0;
+    // var sigma1: f32 = radius1 / 5.0;
+    // var radius2: f32 = 3.0;
+    // var sigma2: f32 = radius2 / 2.0;
+    // var blurredImage1: vec4<f32> = vec4<f32>(0.1, 0.1, 0.1, 0.1); 
+    // var blurredImage2: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0); 
 
 
 
