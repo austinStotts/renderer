@@ -59,8 +59,13 @@ struct PanState {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Parameters {
-    radius: f32,
-    sigma: f32,
+    radius1: f32,
+    sigma1: f32,
+    radius2: f32,
+    sigma2: f32,
+    enabme_xdog: u32,
+    gfact: f32,
+    num_gvf_iterations: u32
 }
 
 
@@ -310,7 +315,21 @@ async fn run() {
 
 
 
-    let params = Parameters { radius: 3.0, sigma: 1.0 };
+    let params = Parameters { 
+        radius1: 3.0,
+        sigma1: 2.0,
+        radius2: 3.0,
+        sigma2: 2.0,
+        enabme_xdog: 0,
+        gfact: 1.0,
+        num_gvf_iterations: 10
+    };
+
+
+
+
+
+
     let params_buffer = device.create_buffer_init(
         &wgpu::util::BufferInitDescriptor {
             label: Some("Parameter buffer"),
