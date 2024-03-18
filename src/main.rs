@@ -319,6 +319,32 @@ async fn run() {
         }
     );
 
+    let params_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("paramerters bind group layout"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer { 
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None 
+                },
+                count: None
+            }
+        ]
+    });
+
+    let params_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("parameters bind group"),
+        layout: &params_bind_group_layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: params_buffer.as_entire_binding(),
+            }
+        ]
+    });
 
 
 
@@ -337,7 +363,7 @@ async fn run() {
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
         // bind_group_layouts: &[&texture_bind_group_layout, &palette_bind_group_layout],
-        bind_group_layouts: &[&texture_bind_group_layout],
+        bind_group_layouts: &[&texture_bind_group_layout, &params_bind_group_layout],
         push_constant_ranges: &[],
     });
 
@@ -551,6 +577,7 @@ async fn run() {
             
                             render_pass.set_pipeline(&render_pipeline);
                             render_pass.set_bind_group(0, &texture_bind_group, &[]);
+                            render_pass.set_bind_group(1, &params_bind_group, &[]);
                             // render_pass.set_bind_group(1, &palette_bind_group, &[]);
                             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                             render_pass.draw(0..6, 0..1);
