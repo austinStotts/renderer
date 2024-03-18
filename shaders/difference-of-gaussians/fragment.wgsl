@@ -41,7 +41,10 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
 
     // ----- Thresholding (optional) -----
     var threshold = 0.1; 
-    return vec4<f32>(step(threshold, abs(difference.r)), step(threshold, abs(difference.g)), step(threshold, abs(difference.b)), 1.0);
+    return vec4<f32>(step(threshold, abs(difference.r)), // Black for edges in red channel
+                       step(threshold, abs(difference.r)), // Black for edges in red channel (repeat for consistency)
+                       step(threshold, abs(difference.r)), // Black for edges in red channel (repeat for consistency)
+                       1.0);  // Alpha remains 1.0
 }
 
 
