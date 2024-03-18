@@ -35,6 +35,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
+use eframe;
 
 use wgpu::util::DeviceExt;
 // use wgpu_glyph::{ab_glyph, GlyphBrushBuilder, Section, Text, Layout};
@@ -219,6 +220,7 @@ impl Default for Renderer {
     }
 }
 
+
 impl eframe::App for Renderer {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -255,9 +257,10 @@ impl eframe::App for Renderer {
 
             if ui.button("render").clicked() {
                 // Run the code using the selected image and shader
-                let shader_options = vec!["invert", "sobel edge detection", "quantization"];
+                // let shader_options = vec!["invert", "sobel edge detection", "quantization"];
                 // pollster::block_on(self.process_image(self.imagename.replace('\\', "/").clone(), shader_options[self.selected_shader_index]));
                 // self.process_image(self.imagename.replace('\\', "/").clone(), shader_options[self.selected_shader_index]);
+                
             }
 
             ui.label(format!("image: [{}], shader: [{}]", self.imagename, shader_options[self.selected_shader_index]));
@@ -269,19 +272,32 @@ impl eframe::App for Renderer {
 
 
 async fn run() {
-    let shader_options = vec!["invert", "sobel edge detection", "quantization"];
+    // let shader_options = vec!["invert", "sobel edge detection", "quantization"];
+
+
+
+    // run gui and renderer at the same time?
+
+    // env_logger::init();
+    // let options = eframe::NativeOptions {
+    //     viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+    //     ..Default::default()
+    // };
+    // eframe::run_native(
+    //     "renderer",
+    //     options,
+    //     Box::new(|cc| {
+    //         Box::<Renderer>::default()
+    //     }),
+    // ).unwrap();
+
+
+
 
     println!("RUNNING RENDERER");
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-
-
-    // let mut imagename = "cat.png";
-    // let mut shader = "../shaders/invert/";
-    // let mut should_render = false;
-
-    
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
@@ -312,7 +328,7 @@ async fn run() {
 
     // println!("{}", imagename.replace('\\', "/"));
     
-    let img = image::load_from_memory(include_bytes!("../images/castle.png")).unwrap();
+    let img = image::load_from_memory(include_bytes!("../images/cat.png")).unwrap();
     // let img = image::open(&Path::new("C:/Users/austin/rust/image-filters/image-filters/src/fish.png")).unwrap();
     // let img = image::open(&Path::new(&imagename)).unwrap();
 
@@ -543,12 +559,12 @@ async fn run() {
 
     let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("V-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/quantization/vertex.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/gaussian-blur/vertex.wgsl"))),
     });
 
     let frag_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("F-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/quantization/fragment.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/gaussian-blur/fragment.wgsl"))),
     });
 
 
