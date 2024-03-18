@@ -1,42 +1,49 @@
-@group(0) @binding(0) var texture: texture_2d<f32>;
-@group(0) @binding(1) var sample: sampler;
+@group(0) @binding(0) var inputTexture: texture_2d<f32>;
+@group(0) @binding(1) var sampler0: sampler;
 
 @fragment
 fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
-    let textureSize : vec2<i32> = textureDimensions(texture);
-    let radius : f32 = 1.0; // Adjust for desired blur radius
-    let sigma : f32 = radius / 3.0; // Standard deviation for Gaussian
+    const radius1: f32 = 2.0;  // Radius for the first Gaussian
+    const sigma1: f32 = radius1 / 3.0;
+    const radius2: f32 = 5.0;  // Radius for the second Gaussian
+    const sigma2: f32 = radius2 / 3.0;
 
-    let kernelSize : i32 = i32(ceil(radius) * 2.0 + 1.0); // Odd kernel size
+    let textureSize: vec2<f32> = vec2<f32>(textureDimensions(inputTexture));
 
-    var result : vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-    var sum : f32 = 0.0;
+    // ----- Gaussian Blur 1 -----
+    var blurredImage1: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0); 
+    var sum1: f32 = 0.0;
 
-    for (var offsetX : i32 = -kernelSize / 2; offsetX <= kernelSize / 2; offsetX++) {
-        let samplePos : vec2<f32> = texcoord.xy / vec2<f32>(textureSize) + vec2<f32>(f32(offsetX), 0.0) / vec2<f32>(textureSize);  // Horizontal pass
-
-        let weight : f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma * sigma)) / (sqrt(2.0 * 3.14159) * sigma);
-        result += textureSample(texture, sample, samplePos) * weight;
-        sum += weight;
+    let kernelSize1: i32 = i32(ceil(radius1) * 2.0 + 1.0); 
+    for (var offsetX : i32 = -kernelSize1 / 2; offsetX <= kernelSize1 / 2; offsetX++) {
+        let samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / textureSize.x, 0.0);
+        let weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma1 * sigma1)) / (sqrt(2.0 * 3.14159) * sigma1);
+        blurredImage1 += textureSample(inputTexture, sampler0, samplePos) * weight;
+        sum1 += weight;
     }
+    blurredImage1 /= sum1;
 
-    result /= sum; 
+    // ----- Gaussian Blur 2 -----
+    var blurredImage2: vec4<f32> = vec4<f32>(0.0, 0.0, 0.0, 0.0); 
+    var sum2: f32 = 0.0;
 
-    // sum = 0.0;
-    // for (var offsetY : i32 = -kernelSize / 2; offsetY <= kernelSize / 2; offsetY++) {
-    //     let samplePos : vec2<f32> = texcoord.xy / textureSize + vec2<f32>(0.0, f32(offsetY)) / textureSize;  // Vertical pass
+    let kernelSize2: i32 = i32(ceil(radius2) * 2.0 + 1.0); 
+    for (var offsetX : i32 = -kernelSize2 / 2; offsetX <= kernelSize2 / 2; offsetX++) {
+        let samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / textureSize.x, 0.0);
+        let weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma2 * sigma2)) / (sqrt(2.0 * 3.14159) * sigma2);
+        blurredImage2 += textureSample(inputTexture, sampler0, samplePos) * weight;
+        sum2 += weight;
+    }
+    blurredImage2 /= sum2;
 
-    //     let weight : f32 = exp(-(f32(offsetY) * f32(offsetY)) / (2.0 * sigma * sigma)) / (sqrt(2.0 * 3.14159) * sigma);
-    //     result += textureSample(texture, sample, samplePos) * weight;
-    //     sum += weight;
-    // }
+    // ----- Difference of Gaussians -----
+    let difference = blurredImage1 - blurredImage2; 
 
-    // result /= sum; 
-
-    // Vertical pass (same implementation, swap offsetX and offsetY in the loop)
-
-    return result;
+    // ----- Thresholding (optional) -----
+    const threshold = 0.05; 
+    return vec4<f32>(step(threshold, abs(difference.r)), step(threshold, abs(difference.g)), step(threshold, abs(difference.b)), 1.0);
 }
+
 
 
 
