@@ -59,14 +59,15 @@ struct PanState {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Parameters {
-    radius1: f32,
+    // radius1: f32,
     sigma1: f32,
-    radius2: f32,
-    sigma2: f32,
-    enable_xdog: u32,
+    // radius2: f32,
+    // sigma2: f32,
+    tau: f32,
     gfact: f32,
-    num_gvf_iterations: i32,
     epsilon: f32,
+    num_gvf_iterations: i32,
+    enable_xdog: u32,
 }
 
 
@@ -170,7 +171,7 @@ async fn run() {
     .await
     .unwrap();
     
-    let img = image::load_from_memory(include_bytes!("../images/bs.png")).unwrap();
+    let img = image::load_from_memory(include_bytes!("../images/cat.png")).unwrap();
 
     let img_ = img.to_rgba8();
     let (mut width, mut height) = img_.dimensions();
@@ -317,14 +318,15 @@ async fn run() {
 
 
     let params = Parameters { 
-        radius1: 1.0,
-        sigma1: 1.0,
-        radius2: 4.0,
-        sigma2: 6.0,
-        enable_xdog: 1,
-        gfact: 2.0,
-        num_gvf_iterations: 15,
+        // radius1: 1.0,
+        sigma1: 4.75,
+        // radius2: 4.0,
+        // sigma2: 6.0,
+        tau: 0.075,
+        gfact: 8.0,
         epsilon: 0.0001,
+        num_gvf_iterations: 30,
+        enable_xdog: 1,
     };
 
 
@@ -404,12 +406,12 @@ async fn run() {
 
     let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("V-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/flow-based-xdog/vertex.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/difference-of-gaussians/vertex.wgsl"))),
     });
 
     let frag_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("F-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/flow-based-xdog/fragment.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/difference-of-gaussians/fragment.wgsl"))),
     });
 
 

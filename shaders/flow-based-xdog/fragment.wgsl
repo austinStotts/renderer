@@ -1,12 +1,13 @@
 struct Parameters {
-    radius1: f32,
+    // radius1: f32,
     sigma1: f32,
-    radius2: f32,
-    sigma2: f32,
-    enable_xdog: u32,
+    // radius2: f32,
+    // sigma2: f32,
+    tau: f32,
     gfact: f32,
+    epsilon: f32,
     num_gvf_iterations: i32,
-    epsilon: f32
+    enable_xdog: u32,
 }
 
 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
@@ -18,8 +19,14 @@ struct Parameters {
 @fragment
 fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
    // ... Obtain texture color ...
+    // var original_color = textureSample(inputTexture, sampler0, texcoord);
     var color = textureSample(inputTexture, sampler0, texcoord);
-    var original_color = textureSample(inputTexture, sampler0, texcoord);
+    var original_color = color;
+
+    var sigma2 = params.sigma1 / 16.0;
+    var radius1 = params.sigma1 * 3.0;
+    var radius2 = sigma2 * 2.0;
+
     if (params.enable_xdog == 1u) {
         // Gradient calculation using Sobel operators
          var sobel_x = array<vec3<f32>, 3>(
@@ -57,14 +64,15 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
             let v_temp = dy + params.gfact * v;
             
             // Normalize (sqrt function might require additional implementation)
-            let norm_factor = approximate_inversesqrt(u_temp * u_temp + v_temp * v_temp + params.epsilon * params.epsilon);
-            u = u_temp * norm_factor;
-            v = v_temp * norm_factor;
+            // let norm_factor = approximate_inversesqrt(u_temp * u_temp + v_temp * v_temp + params.epsilon * params.epsilon);
+            let norm_factor = sqrt(u_temp * u_temp + v_temp * v_temp + params.epsilon);
+            u = u_temp / norm_factor;
+            v = v_temp / norm_factor;
         }
 
         // Gaussian Blur Implementation
-        var kernelSize1 : i32 = i32(ceil(params.radius1) * 2.0 + 1.0); 
-        var kernelSize2 : i32 = i32(ceil(params.radius2) * 2.0 + 1.0);
+        var kernelSize1 : i32 = i32(ceil(radius1) * 2.0 + 1.0); 
+        var kernelSize2 : i32 = i32(ceil(radius2) * 2.0 + 1.0);
         var blurredImage1 = color; 
         var blurredImage2 = color; 
         var total_weight: f32 = 0.0;
@@ -90,7 +98,7 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
         // Blur 2 Horizontal Pass
         for (var offsetX : i32 = -kernelSize2 / 2; offsetX <= kernelSize2 / 2; offsetX++) {
             let samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / f32(textureDimensions(inputTexture).x), 0.0);
-            let weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * params.sigma2 * params.sigma2)) / (sqrt(2.0 * 3.14159) * params.sigma2);
+            let weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma2 * sigma2)) / (sqrt(2.0 * 3.14159) * sigma2);
             blurredImage2 += textureSample(inputTexture, sampler0, samplePos) * weight;
             total_weight += weight; // Keep track of total weight
         }
@@ -99,7 +107,7 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
         // Blur 2 Vertical Pass
         for (var offsetY : i32 = -kernelSize2 / 2; offsetY <= kernelSize2 / 2; offsetY++) {
             let samplePos: vec2<f32> = texcoord + vec2<f32>(0.0, f32(offsetY) / f32(textureDimensions(inputTexture).y));
-            let weight: f32 = exp(-(f32(offsetY) * f32(offsetY)) / (2.0 * params.sigma2 * params.sigma2)) / (sqrt(2.0 * 3.14159) * params.sigma2);
+            let weight: f32 = exp(-(f32(offsetY) * f32(offsetY)) / (2.0 * sigma2 * sigma2)) / (sqrt(2.0 * 3.14159) * sigma2);
             blurredImage2 += textureSample(inputTexture, sampler0, samplePos) * weight;
             total_weight += weight; // Keep track of total weight
         }
@@ -107,13 +115,14 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
         blurredImage1 /= total_weight;
         blurredImage2 /= total_weight;
 
-        var xdog_difference = blurredImage1.r - blurredImage2.r; // Assumes only using red channel
+        var xdog_difference = blurredImage2.r - blurredImage1.r; // Assumes only using red channel
 
 
-        // Optional Thresholding 
-        var threshold = 0.075; 
-        if (abs(xdog_difference) < threshold) {
-            xdog_difference = 0.0; 
+        // Optional Thresholding  
+        if (abs(xdog_difference) >= params.tau) {
+             xdog_difference = 1.0 - exp(-xdog_difference / params.tau);
+        } else {
+            xdog_difference = 0.0;
         }
 
         

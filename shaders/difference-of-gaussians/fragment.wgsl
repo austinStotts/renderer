@@ -1,12 +1,13 @@
 struct Parameters {
-    radius1: f32,
+    // radius1: f32,
     sigma1: f32,
-    radius2: f32,
-    sigma2: f32,
-    enable_xdog: u32,
+    // radius2: f32,
+    // sigma2: f32,
+    tau: f32,
     gfact: f32,
+    epsilon: f32,
     num_gvf_iterations: i32,
-    epsilon: f32
+    enable_xdog: u32,
 }
 
 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
@@ -17,10 +18,10 @@ struct Parameters {
 
 @fragment
 fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
-    var radius1: f32 = 4.0;  // Radius for the first Gaussian
-    var sigma1: f32 = radius1 / 3.0;
-    var radius2: f32 = 5.0;  // Radius for the second Gaussian
-    var sigma2: f32 = radius2 / 3.0;
+
+    var sigma2 = params.sigma1 / 16.0;
+    var radius1 = params.sigma1 * 3.0;
+    var radius2 = sigma2 * 2.0;
 
     var textureSize: vec2<f32> = vec2<f32>(textureDimensions(inputTexture));
 
@@ -31,7 +32,7 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
     var kernelSize1: i32 = i32(ceil(radius1) * 2.0 + 1.0); 
     for (var offsetX : i32 = -kernelSize1 / 2; offsetX <= kernelSize1 / 2; offsetX++) {
         var samplePos: vec2<f32> = texcoord + vec2<f32>(f32(offsetX) / textureSize.x, 0.0);
-        var weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * sigma1 * sigma1)) / (sqrt(2.0 * 3.14159) * sigma1);
+        var weight: f32 = exp(-(f32(offsetX) * f32(offsetX)) / (2.0 * params.sigma1 * params.sigma1)) / (sqrt(2.0 * 3.14159) * params.sigma1);
         blurredImage1 += textureSample(inputTexture, sampler0, samplePos) * weight;
         sum1 += weight;
     }
@@ -51,15 +52,25 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
     blurredImage2 /= sum2;
 
     // ----- Difference of Gaussians -----
-    var difference = blurredImage1 - blurredImage2; 
+    var difference = blurredImage1.r - blurredImage2.r; 
+
+    if (abs(difference) >= params.tau) {
+        difference = 1.0 - exp(-difference / params.tau);
+    } else {
+        difference = 0.0;
+    }
+
+
+
+    return vec4<f32>(difference, difference, difference, 1.0);
 
     // ----- Thresholding (optional) -----
-    var threshold = 0.015; 
-    return vec4<f32>(
-        step(threshold, abs(difference.r)),
-        step(threshold, abs(difference.r)),
-        step(threshold, abs(difference.r)),
-        1.0);  // Alpha remains 1.0
+    // var threshold = 0.015; 
+    // return vec4<f32>(
+    //     step(threshold, abs(difference.r)),
+    //     step(threshold, abs(difference.r)),
+    //     step(threshold, abs(difference.r)),
+        // 1.0);
 }
 
 
