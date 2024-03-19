@@ -111,14 +111,14 @@ fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
 
 
         // Optional Thresholding 
-        var threshold = 0.125; 
+        var threshold = 0.075; 
         if (abs(xdog_difference) < threshold) {
             xdog_difference = 0.0; 
         }
 
         
 
-        color.r = pow(xdog_difference, 2.0); 
+        color.r = xdog_difference;
         color.g = color.r;
         color.b = color.r;
 

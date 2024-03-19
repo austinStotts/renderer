@@ -170,7 +170,7 @@ async fn run() {
     .await
     .unwrap();
     
-    let img = image::load_from_memory(include_bytes!("../images/cat.png")).unwrap();
+    let img = image::load_from_memory(include_bytes!("../images/bs.png")).unwrap();
 
     let img_ = img.to_rgba8();
     let (mut width, mut height) = img_.dimensions();
@@ -318,13 +318,13 @@ async fn run() {
 
     let params = Parameters { 
         radius1: 1.0,
-        sigma1: 1.5,
-        radius2: 3.0,
-        sigma2: 5.0,
+        sigma1: 1.0,
+        radius2: 4.0,
+        sigma2: 6.0,
         enable_xdog: 1,
-        gfact: 4.0,
-        num_gvf_iterations: 29,
-        epsilon: 0.0,
+        gfact: 2.0,
+        num_gvf_iterations: 15,
+        epsilon: 0.0001,
     };
 
 
