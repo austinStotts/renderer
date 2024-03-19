@@ -19,7 +19,7 @@
 
 
 
-
+mod isr;
 
 use core::result::Result::Ok;
 use ::image;
@@ -63,9 +63,10 @@ struct Parameters {
     sigma1: f32,
     radius2: f32,
     sigma2: f32,
-    enabme_xdog: u32,
+    enable_xdog: u32,
     gfact: f32,
-    num_gvf_iterations: u32
+    num_gvf_iterations: i32,
+    epsilon: f32,
 }
 
 
@@ -316,14 +317,16 @@ async fn run() {
 
 
     let params = Parameters { 
-        radius1: 3.0,
-        sigma1: 2.0,
+        radius1: 1.0,
+        sigma1: 1.5,
         radius2: 3.0,
-        sigma2: 2.0,
-        enabme_xdog: 0,
-        gfact: 1.0,
-        num_gvf_iterations: 10
+        sigma2: 5.0,
+        enable_xdog: 1,
+        gfact: 4.0,
+        num_gvf_iterations: 29,
+        epsilon: 0.0,
     };
+
 
 
 
@@ -368,21 +371,52 @@ async fn run() {
 
 
 
+    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Inverse Sqrt Lookup Buffer"),
+        contents: bytemuck::cast_slice(&isr::getvalues()),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+
+    let buffer_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("Lookup Table Layout"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0, // Matches @binding(0) in the shader
+            visibility: wgpu::ShaderStages::FRAGMENT, 
+            ty: wgpu::BindingType::Buffer { 
+                ty: wgpu::BufferBindingType::Storage { read_only: (true) },
+                has_dynamic_offset: false,
+                min_binding_size: None 
+            },  // Specify buffer details
+            count: None,
+        }],
+    });
+    
+    // Bind Group 
+    let buffer_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &buffer_bind_group_layout, 
+        entries: &[wgpu::BindGroupEntry { 
+            binding: 0, 
+            resource: buffer.as_entire_binding(),
+        }],
+        label: Some("Lookup Table Bind Group"),
+    });
+
+
     let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("V-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/gaussian-blur/vertex.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/flow-based-xdog/vertex.wgsl"))),
     });
 
     let frag_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("F-Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/gaussian-blur/fragment.wgsl"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shaders/flow-based-xdog/fragment.wgsl"))),
     });
 
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
         // bind_group_layouts: &[&texture_bind_group_layout, &palette_bind_group_layout],
-        bind_group_layouts: &[&texture_bind_group_layout, &params_bind_group_layout],
+        bind_group_layouts: &[&texture_bind_group_layout, &params_bind_group_layout, &buffer_bind_group_layout],
         push_constant_ranges: &[],
     });
 
@@ -597,6 +631,7 @@ async fn run() {
                             render_pass.set_pipeline(&render_pipeline);
                             render_pass.set_bind_group(0, &texture_bind_group, &[]);
                             render_pass.set_bind_group(1, &params_bind_group, &[]);
+                            render_pass.set_bind_group(2, &buffer_bind_group, &[]);
                             // render_pass.set_bind_group(1, &palette_bind_group, &[]);
                             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                             render_pass.draw(0..6, 0..1);

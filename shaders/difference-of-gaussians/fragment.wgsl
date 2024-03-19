@@ -1,5 +1,19 @@
+struct Parameters {
+    radius1: f32,
+    sigma1: f32,
+    radius2: f32,
+    sigma2: f32,
+    enable_xdog: u32,
+    gfact: f32,
+    num_gvf_iterations: i32,
+    epsilon: f32
+}
+
 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
 @group(0) @binding(1) var sampler0: sampler;
+
+@group(1) @binding(0) var<uniform> params: Parameters;
+@group(2) @binding(0) var<storage, read> inverse_sqrt_table : array<f32, 256>;
 
 @fragment
 fn frag_main(@location(0) texcoord: vec2<f32>) -> @location(0) vec4<f32> {
